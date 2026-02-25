@@ -1,0 +1,43 @@
+# Environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# User inputs (resume, cover letters — keep off git)
+inputs/resume.docx
+inputs/resume.pdf
+inputs/cover_letter.docx
+inputs/cover_letter.pdf
+inputs/sample_applications/
+
+# Outputs (generated files — keep the directory, ignore contents)
+outputs/applications/
+outputs/*.xlsx
+
+# Playwright browsers
+playwright/.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo

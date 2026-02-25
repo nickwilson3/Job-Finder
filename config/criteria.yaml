@@ -1,0 +1,15 @@
+# Job Match Scoring Criteria
+# Weights must sum to 100
+
+scoring_weights:
+  skills_match: 40          # How well your skills match required skills
+  experience_level: 20      # Appropriate experience level (not over/under qualified)
+  title_alignment: 20       # Job title matches your target titles
+  industry_fit: 10          # Industry aligns with your background
+  location_fit: 10          # Location/remote preference match
+
+# Minimum acceptable score to generate tailored documents
+min_score_to_tailor: 70
+
+# What a "strong match" looks like (for priority flagging in Excel)
+strong_match_threshold: 85

@@ -1,0 +1,47 @@
+# Job Search Settings
+# Fill in your preferences before running the agent
+
+# Cities to search in (include state for clarity)
+cities:
+  - "Chicago, IL"
+  - "Remote"
+  # Add more cities here
+
+# Job titles to search for
+job_titles:
+  - "Software Engineer"
+  - "Backend Engineer"
+  # Add more titles here
+
+# Keywords that should appear in job descriptions
+keywords:
+  - "Python"
+  - "AWS"
+  # Add more keywords here
+
+# Keywords that should NOT appear (hard filters)
+exclude_keywords:
+  - "10+ years"
+  - "Principal"
+  # Add exclusions here
+
+# Job type filters
+filters:
+  employment_type: "full-time"        # full-time only
+  remote_options:                      # include these work arrangements
+    - "remote"
+    - "hybrid"
+    - "on-site"
+  posted_within_days: 7               # only jobs posted in last N days
+  min_match_score: 70                 # minimum Claude match score (0-100) to process
+
+# Job boards to search
+sources:
+  linkedin: true
+  ziprecruiter: true
+  company_sites: true
+
+# Output settings
+output:
+  excel_file: "outputs/job_tracker.xlsx"
+  applications_dir: "outputs/applications"
