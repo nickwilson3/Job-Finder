@@ -11,6 +11,9 @@ You are a professional career coach and recruiter. Analyze how well a candidate'
 **Description:**
 {job_description}
 
+## Candidate's Past Application Preferences
+{preference_context}
+
 ## Scoring Criteria (weights)
 - Skills match: {skills_weight}%
 - Experience level: {experience_weight}%

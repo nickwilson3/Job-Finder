@@ -3,27 +3,35 @@
 
 # Cities to search in (include state for clarity)
 cities:
-  - "Chicago, IL"
+  - "Los Angeles, CA"
+  - "Newport Beach, CA"
+  - "Huntington Beach, CA"
+  - "Irvine, CA"
+  - "San Diego, CA"
+  - "Long Beach, CA"
+  - "Costa Mesa, CA"
+  - "New York, NY"
   - "Remote"
-  # Add more cities here
 
 # Job titles to search for
 job_titles:
-  - "Software Engineer"
-  - "Backend Engineer"
-  # Add more titles here
+  - "Data Scientist"
+  - "Data Analyst"
+  - "Quantitative Analyst"
+  - "Data Engineer"
 
 # Keywords that should appear in job descriptions
 keywords:
   - "Python"
-  - "AWS"
-  # Add more keywords here
+  - "SQL"
+  - "Machine Learning"
+  - "Data"
 
 # Keywords that should NOT appear (hard filters)
 exclude_keywords:
   - "10+ years"
-  - "Principal"
-  # Add exclusions here
+  - "5+ years"
+  - "security clearance"
 
 # Job type filters
 filters:
@@ -32,16 +40,24 @@ filters:
     - "remote"
     - "hybrid"
     - "on-site"
-  posted_within_days: 7               # only jobs posted in last N days
+  posted_within_days: 30              # only jobs posted in last N days
   min_match_score: 70                 # minimum Claude match score (0-100) to process
 
 # Job boards to search
 sources:
   linkedin: true
-  ziprecruiter: true
+  ziprecruiter: false
   company_sites: true
+
+# Max new jobs to process per run (after deduplication against the tracker)
+# Already-seen jobs are always excluded via outputs/job_tracker.xlsx
+max_jobs_per_run: 50
+
+# Max companies to query on Greenhouse/Lever (top N by LinkedIn frequency)
+max_companies_to_check: 100
 
 # Output settings
 output:
-  excel_file: "outputs/job_tracker.xlsx"
-  applications_dir: "outputs/applications"
+  google_sheet_id: "1oMoGyef8W_cosRmBANPRd_y7Jj-nKYQ8atDC6KbbrBw"
+  drive_output_folder_id: "1TT7NiQqdoNsdGAOzMt4kSiuUPXgTbUGr"   # Drive folder ID for Google Docs output (shared with service account)
+  applications_dir: "outputs/applications"   # Local DOCX backup location

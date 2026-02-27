@@ -18,16 +18,21 @@ build/
 venv/
 env/
 
-# User inputs (resume, cover letters — keep off git)
+# User inputs (resume, cover letters — never commit)
 inputs/resume.docx
 inputs/resume.pdf
 inputs/cover_letter.docx
 inputs/cover_letter.pdf
 inputs/sample_applications/
 
+# Google credentials and session tokens — never commit these
+inputs/*.json
+
 # Outputs (generated files — keep the directory, ignore contents)
 outputs/applications/
 outputs/*.xlsx
+outputs/*.docx
+outputs/run.log
 
 # Playwright browsers
 playwright/.cache/

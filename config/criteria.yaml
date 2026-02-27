@@ -1,15 +1,123 @@
-# Job Match Scoring Criteria
-# Weights must sum to 100
+# ============================================================
+# JOB MATCH CRITERIA  —  Fill this in before running the agent
+# ============================================================
+# This file describes YOU: your skills, experience, and what
+# a good job looks like. The agent uses it to score every
+# posting and decide whether to tailor documents for it.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# YOUR PROFILE
+# ------------------------------------------------------------
+
+candidate:
+  name: "Nick Wilson"                        # e.g. "Nick Williams"
+  target_titles:                  # Titles you want — order matters (first = most preferred)
+    - "Data Scientist"
+    - "Data Analyst"
+    - "Quantitative Analyst"
+    - "Data Engineer"
+
+
+  years_of_experience: 2          # Total professional years (number)
+
+  experience_level: "Entry"            # entry | mid | senior | lead | manager
+
+  # Hard skills — tools, languages, frameworks, platforms you actually know
+  skills:
+    strong:                       # You'd be comfortable in an interview on these
+      - "Python"
+      - "SQL"
+      - "R"
+      - "Excel"
+      - "Machine Learning"
+      - "Database Management"
+      - "Statistics"
+      - "Financial Modeling"
+      - "AI"
+      - "Artificial Intelligence"
+      # - ""
+    familiar:                     # You've used these but aren't an expert
+      # - ""
+
+  # Industries / domains you have background in
+  industries:
+    - "Consulting"
+    - "Financial Services"
+    - "Technology"
+    - "AI"
+    - "Baseball"
+    # - ""
+
+  # Soft skills or competencies worth highlighting in tailored docs
+  soft_skills:
+    - "Product Management"
+    - "0 to 1"
+    - "Leadership"
+    # - ""
+
+
+# ------------------------------------------------------------
+# LOCATION & WORK ARRANGEMENT
+# ------------------------------------------------------------
+
+location:
+  preferred_cities:               # Cities you're willing to work in
+    - "Los Angeles, CA"
+    - "Newport Beach, CA"
+    - "Huntington Beach, CA"
+    - "Irvine, CA"
+    - "San Diego, CA"
+    - "Long Beach, CA"
+    - "Costa Mesa, CA"
+    - "New York, NY"
+    - "Remote"
+
+  work_arrangement:               # List all you'll accept
+    - "remote"
+    - "hybrid"
+    - "on-site"
+
+  willing_to_relocate: true      # true | false
+
+
+# ------------------------------------------------------------
+# JOB REQUIREMENTS  —  What you need the job to have
+# ------------------------------------------------------------
+
+requirements:
+  # Keywords that MUST appear somewhere in the posting
+  must_have_keywords:
+    # - ""
+
+  # Keywords that immediately disqualify a posting
+  deal_breakers:
+    - "10+ years"
+    - "5+ years"
+    - "security clearance"
+
+  employment_type: "full-time"    # full-time | part-time | contract | any
+
+  # Only consider jobs posted within this many days
+  posted_within_days: 30
+
+
+# ------------------------------------------------------------
+# MATCH SCORING
+# Weights control how the 0–100 score is calculated.
+# They MUST sum to 100.
+# ------------------------------------------------------------
 
 scoring_weights:
-  skills_match: 40          # How well your skills match required skills
-  experience_level: 20      # Appropriate experience level (not over/under qualified)
-  title_alignment: 20       # Job title matches your target titles
-  industry_fit: 10          # Industry aligns with your background
-  location_fit: 10          # Location/remote preference match
+  skills_match: 40          # How well posting's required skills match yours
+  experience_level: 20      # Are you appropriately leveled (not over/under)?
+  title_alignment: 20       # Does the title match your targets?
+  industry_fit: 10          # Does the industry match your background?
+  location_fit: 10          # Does location/remote match your preferences?
 
-# Minimum acceptable score to generate tailored documents
-min_score_to_tailor: 70
+# Minimum score (0–100) to generate tailored resume + cover letter
+min_score_to_tailor: 50
 
-# What a "strong match" looks like (for priority flagging in Excel)
+# Score at or above this = flagged as "Strong Match" in the Excel tracker
 strong_match_threshold: 85

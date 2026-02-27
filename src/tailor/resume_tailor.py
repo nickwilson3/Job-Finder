@@ -1,6 +1,38 @@
 # Resume tailoring module
 # Uses Claude API to identify keyword swaps, then python-docx to apply them
 
+import json
+import re
+import shutil
+from pathlib import Path
+
+from docx import Document
+
+PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "resume_tailor.md"
+
+
+def _extract_text(docx_path: str) -> str:
+    doc = Document(docx_path)
+    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+
+def _apply_replacements(doc: Document, replacements: list[dict]) -> None:
+    """Apply find/replace pairs to all runs in the document, preserving formatting."""
+    targets = [(r["find"], r["replace"]) for r in replacements if r.get("find")]
+
+    def replace_in_paragraphs(paragraphs):
+        for para in paragraphs:
+            for run in para.runs:
+                for find, replace in targets:
+                    if find in run.text:
+                        run.text = run.text.replace(find, replace)
+
+    replace_in_paragraphs(doc.paragraphs)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                replace_in_paragraphs(cell.paragraphs)
+
 
 def tailor_resume(job: dict, resume_path: str, output_path: str, client) -> str:
     """
@@ -16,5 +48,42 @@ def tailor_resume(job: dict, resume_path: str, output_path: str, client) -> str:
     Returns:
         Path to the saved tailored resume.docx
     """
-    # TODO: implement
-    raise NotImplementedError
+    resume_text = _extract_text(resume_path)
+    prompt_template = PROMPT_PATH.read_text()
+
+    recommended = job.get("recommended_keywords", [])
+    substitutions = {
+        "resume_text": resume_text,
+        "company": job.get("company", ""),
+        "job_title": job.get("title", ""),
+        "job_description": job.get("description", ""),
+        "recommended_keywords": ", ".join(recommended) if recommended else "None",
+    }
+    prompt = prompt_template
+    for key, value in substitutions.items():
+        prompt = prompt.replace(f"{{{key}}}", value)
+
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    text = message.content[0].text
+
+    # Extract JSON array from response
+    json_match = re.search(r"\[.*\]", text, re.DOTALL)
+    if not json_match:
+        raise ValueError(f"No JSON array found in Claude response:\n{text}")
+
+    replacements = json.loads(json_match.group())
+
+    # Copy base resume and apply swaps
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(resume_path, output_path)
+
+    doc = Document(output_path)
+    _apply_replacements(doc, replacements)
+    doc.save(output_path)
+
+    return output_path
