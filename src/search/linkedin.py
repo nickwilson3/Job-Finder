@@ -32,16 +32,21 @@ def search_linkedin(
     """
     from playwright.sync_api import sync_playwright
 
-    session_file = Path(session_file) if session_file else SESSION_FILE
-    if not session_file.exists():
-        print(
-            f"\n  LinkedIn: no session file found at {session_file}\n"
-            "  Run: python src/search/linkedin.py --setup\n"
-            "  Then re-run the agent.\n"
-        )
-        return []
-
-    cookies = json.loads(session_file.read_text())
+    # Load cookies: env var takes priority (production), then file (local dev)
+    import os
+    session_json = os.environ.get("LINKEDIN_SESSION")
+    if session_json:
+        cookies = json.loads(session_json)
+    else:
+        session_file = Path(session_file) if session_file else SESSION_FILE
+        if not session_file.exists():
+            print(
+                f"\n  LinkedIn: no session file found at {session_file}\n"
+                "  Run: python src/search/linkedin.py --setup\n"
+                "  Then re-run the agent.\n"
+            )
+            return []
+        cookies = json.loads(session_file.read_text())
     days = filters.get("posted_within_days", 30)
     seconds = days * 24 * 3600  # LinkedIn time filter uses seconds
 
