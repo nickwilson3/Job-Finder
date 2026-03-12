@@ -173,16 +173,20 @@ def fetch_descriptions_batch(jobs: list[dict], session_file: Path | None = None)
     """
     from playwright.sync_api import sync_playwright
 
-    session_file = Path(session_file) if session_file else SESSION_FILE
-    if not session_file.exists():
-        print("  LinkedIn: no session file, skipping description fetch.")
-        return
+    import os
+    session_json = os.environ.get("LINKEDIN_SESSION")
+    if session_json:
+        cookies = json.loads(session_json)
+    else:
+        session_file = Path(session_file) if session_file else SESSION_FILE
+        if not session_file.exists():
+            print("  LinkedIn: no session file, skipping description fetch.")
+            return
+        cookies = json.loads(session_file.read_text())
 
     linkedin_jobs = [j for j in jobs if j.get("source") == "linkedin" and not j.get("description")]
     if not linkedin_jobs:
         return
-
-    cookies = json.loads(session_file.read_text())
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=[
