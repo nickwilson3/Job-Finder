@@ -44,7 +44,7 @@
 <section class="bg-white rounded-xl shadow p-6 mb-6 transition-shadow duration-200 hover:shadow-md">
   <h2 class="text-lg font-semibold mb-1">2. Google Drive</h2>
   <p class="text-sm text-gray-500 mb-4">Connect your Google account to have tailored resumes and cover letters saved directly to your Drive as editable Google Docs.</p>
-  {% if user.google_drive_connected %}
+  {% if drive_connected %}
     <div class="flex items-center gap-4">
       <span class="inline-flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">Connected</span>
       <form method="post" action="/auth/google/disconnect" onsubmit="return confirm('Disconnect Google Drive?')">

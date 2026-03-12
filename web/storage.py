@@ -113,6 +113,7 @@ def read_settings(user_id: int) -> dict:
 
 def write_settings(user_id: int, data: dict) -> None:
     path = config_dir(user_id) / "settings.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
 
@@ -127,6 +128,7 @@ def read_criteria(user_id: int) -> dict:
 
 def write_criteria(user_id: int, data: dict) -> None:
     path = config_dir(user_id) / "criteria.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True)
 

@@ -10,6 +10,7 @@ from web.auth import get_current_user
 from web.database import get_db
 from web.models import User
 from web.storage import (
+    google_token_path,
     inputs_dir,
     read_criteria,
     read_settings,
@@ -43,6 +44,13 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
     idir = inputs_dir(user.id)
     has_resume = (idir / "resume.docx").exists()
     has_cl = (idir / "cover_letter.docx").exists()
+    # Check actual token file on disk — DB flag can be stale after a redeploy
+    drive_connected = google_token_path(user.id).exists()
+    # Sync DB if they've drifted (token gone after redeploy)
+    if user.google_drive_connected and not drive_connected:
+        user.google_drive_connected = False
+        from web.database import SessionLocal
+        db.commit()
     return templates.TemplateResponse(
         "settings.html",
         {
@@ -53,6 +61,7 @@ def settings_page(request: Request, db: Session = Depends(get_db)):
             "criteria": criteria,
             "has_resume": has_resume,
             "has_cl": has_cl,
+            "drive_connected": drive_connected,
             "success": request.query_params.get("saved"),
         },
     )
