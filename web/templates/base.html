@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Job Finder{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'DM Sans', sans-serif; }
+    .job-row { transition: background-color 0.15s ease; }
+    .job-row:hover { background-color: #eff6ff; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+<div class="h-1 w-full bg-gradient-to-r from-blue-500 to-sky-400"></div>
+
+{% if user is defined and user %}
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+  <span class="font-semibold text-lg tracking-tight">Job Finder</span>
+  <div class="flex items-center gap-6 text-sm">
+    <a href="/dashboard" class="hover:text-blue-600 transition-colors duration-150 pb-0.5 {% if active == 'dashboard' %}text-blue-600 font-medium border-b-2 border-blue-500{% endif %}">Dashboard</a>
+    <a href="/runs" class="hover:text-blue-600 transition-colors duration-150 pb-0.5 {% if active == 'runs' %}text-blue-600 font-medium border-b-2 border-blue-500{% endif %}">Runs</a>
+    <a href="/settings" class="hover:text-blue-600 transition-colors duration-150 pb-0.5 {% if active == 'settings' %}text-blue-600 font-medium border-b-2 border-blue-500{% endif %}">Settings</a>
+    {% if user.is_admin %}<a href="/admin/users" class="hover:text-blue-600 transition-colors duration-150 pb-0.5 {% if active == 'admin' %}text-blue-600 font-medium border-b-2 border-blue-500{% endif %}">Admin</a>{% endif %}
+    <form method="post" action="/logout" class="inline">
+      <button type="submit" class="text-gray-500 hover:text-red-600 transition-colors duration-150">Sign out</button>
+    </form>
+  </div>
+</nav>
+{% endif %}
+
+<main class="max-w-6xl mx-auto px-6 py-8">
+  {% block content %}{% endblock %}
+</main>
+
+<script src="/static/app.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

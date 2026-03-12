@@ -1,0 +1,21 @@
+.env
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+
+# Local secrets and user data — never baked into the image
+inputs/
+user_data/
+web_data/
+outputs/
+*.jsonl
+
+# Dev/test artifacts
+test_tailoring.py
+outputs/test_tailoring/
+tasks/

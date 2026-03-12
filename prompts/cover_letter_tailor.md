@@ -1,6 +1,6 @@
 # Prompt: Cover Letter Tailoring
 
-You are a professional cover letter writer. Tailor this cover letter for the specific job below.
+You are a professional cover letter editor. Tailor this cover letter for the specific job below.
 
 ## Cover Letter Template
 Each non-blank paragraph is shown with its index in [brackets]. You will reference these indices in your output.
@@ -18,17 +18,19 @@ Each non-blank paragraph is shown with its index in [brackets]. You will referen
 
 ## Instructions
 
-1. **Replace ALL placeholders and the header company line**: Scan every paragraph for `[Company Name]` and `[Job Title]` and replace them with the actual values. Also update the short paragraph in the header that contains only the previous company name — change it to `{company}`. Do not leave any placeholder text in the output.
+1. **Clean the header address block**: Between the candidate's contact info at the top and the "Dear Hiring Manager," greeting, there may be lines for a recipient name, street address, and city/state/zip. Clear ALL such lines by setting them to `""`. Set the remaining Company Name line (the one that contains only the previous company name) to `{company}`. Do NOT touch the candidate's own name or contact information at the top.
 
 2. **Tailor the opening paragraph**: Update with the correct company and title. Optionally add a sentence drawing on the JD's specific requirements.
 
-3. **Optimize the experience paragraph**: Keep the core content but adjust language to highlight the experience most relevant to this role. Match terminology from the JD. Pull in additional specific detail from the resume if it strengthens the fit.
+3. **Adjust language in the experience paragraph**: Keep the core content and structure. Adjust terminology to highlight experience most relevant to this role and match language from the JD. Pull in specific detail from the resume if it strengthens the fit. Do not rewrite the paragraph wholesale — preserve the candidate's voice.
 
-4. **Rewrite the tailored alignment section**: Replace the placeholder paragraph(s) with a genuine, specific paragraph about why the candidate fits THIS role at THIS company — use specific details from the job description. If the placeholder spans multiple paragraph indices, write the full new content into the FIRST index and set ALL remaining placeholder indices to `""` (empty string) to clear them.
+4. **Update the tailored alignment section**: Adjust the paragraph(s) that speak to why the candidate fits this specific role. Use details from the job description to make it specific and genuine. Preserve the candidate's voice and sentence structure. If the section spans multiple paragraph indices, write the full updated content into the FIRST index and set remaining placeholder indices to `""`.
 
-5. **Update the closing paragraph**: Replace `[Company Name]` with the actual company name.
+5. **Update the closing paragraph**: Replace any `[Company Name]` placeholder with the actual company name.
 
-6. Do NOT invent achievements or experience not in the resume. Preserve the candidate's voice and letter structure.
+6. Do NOT invent achievements or experience not in the resume.
+
+7. **Preserve the closing exactly**: Do not modify the "Sincerely," line or the candidate's name/signature below it. Leave those paragraph indices unchanged.
 
 Return a JSON array for every paragraph that changes (including those cleared to `""`):
 ```json

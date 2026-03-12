@@ -6,7 +6,25 @@ import re
 import shutil
 from pathlib import Path
 
+_JUNK_LABEL = re.compile(
+    r"\b(experience|education|skills|projects?|certifications?|summary|objective|"
+    r"references?|awards?|leadership|technical\s+capabilities?|selected\s+projects?|"
+    r"additional\s+information?)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_junk_paragraph(text: str) -> bool:
+    """True if paragraph consists entirely of section-label words and separators."""
+    if not text:
+        return True
+    cleaned = _JUNK_LABEL.sub("", text)
+    cleaned = re.sub(r"[\s/\-\u2013\u2014|•→>]+", "", cleaned)
+    return cleaned == ""
+
+
 from docx import Document
+from docx.shared import Pt
 
 PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "resume_tailor.md"
 
@@ -14,6 +32,21 @@ PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "resume_tailor.m
 def _extract_text(docx_path: str) -> str:
     doc = Document(docx_path)
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+
+def _strip_trailing_junk(doc: Document) -> None:
+    """Remove empty/junk trailing paragraphs and eliminate blank-page spacing."""
+    for para in reversed(doc.paragraphs):
+        if _is_junk_paragraph(para.text.strip()):
+            try:
+                para._element.getparent().remove(para._element)
+            except Exception:
+                pass  # mandatory final paragraph can't be deleted; leave it
+        else:
+            # Zero out space_after on the last real paragraph so it can't
+            # push a blank second page due to trailing whitespace/spacing.
+            para.paragraph_format.space_after = Pt(0)
+            break
 
 
 def _apply_replacements(doc: Document, replacements: list[dict]) -> None:
@@ -84,6 +117,7 @@ def tailor_resume(job: dict, resume_path: str, output_path: str, client) -> str:
 
     doc = Document(output_path)
     _apply_replacements(doc, replacements)
+    _strip_trailing_junk(doc)
     doc.save(output_path)
 
     return output_path

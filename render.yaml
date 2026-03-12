@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: job-finder
+    runtime: docker
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: WEB_SECRET_KEY
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: ENVIRONMENT
+        value: production

@@ -18,6 +18,8 @@ candidate:
     - "Data Analyst"
     - "Quantitative Analyst"
     - "Data Engineer"
+    - "Quantitative Engineer"
+    - "Machine Learning Engineer"
 
 
   years_of_experience: 2          # Total professional years (number)
@@ -71,6 +73,8 @@ location:
     - "San Diego, CA"
     - "Long Beach, CA"
     - "Costa Mesa, CA"
+    - "Anaheim, CA"
+    - "Santa Ana, CA"
     - "New York, NY"
     - "Remote"
 
@@ -96,6 +100,8 @@ requirements:
     - "10+ years"
     - "5+ years"
     - "security clearance"
+    - "6+ years"
+    - "8+ years"
 
   employment_type: "full-time"    # full-time | part-time | contract | any
 
@@ -110,8 +116,8 @@ requirements:
 # ------------------------------------------------------------
 
 scoring_weights:
-  skills_match: 40          # How well posting's required skills match yours
-  experience_level: 20      # Are you appropriately leveled (not over/under)?
+  skills_match: 35          # How well posting's required skills match yours
+  experience_level: 25      # Are you appropriately leveled (not over/under)?
   title_alignment: 20       # Does the title match your targets?
   industry_fit: 10          # Does the industry match your background?
   location_fit: 10          # Does location/remote match your preferences?

@@ -9,6 +9,7 @@ import shutil
 from pathlib import Path
 
 from docx import Document
+from docx.shared import Inches, Pt
 
 PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "cover_letter_tailor.md"
 
@@ -23,21 +24,45 @@ def _numbered_paragraphs(doc: Document) -> str:
 
 
 def _apply_paragraph_replacements(doc: Document, replacements: list[dict]) -> None:
-    """Replace paragraph content by index, preserving DOCX run formatting."""
+    """Replace paragraph content by index; physically delete paragraphs with text=''."""
+    # Snapshot references before any mutation (deletions shift the live list)
+    paras = doc.paragraphs
+    to_process = []
     for item in replacements:
         idx = item.get("index")
         new_text = item.get("text", "")
-        if idx is None or not isinstance(idx, int):
+        if idx is None or not isinstance(idx, int) or idx >= len(paras):
             continue
-        if idx >= len(doc.paragraphs):
-            continue
-        para = doc.paragraphs[idx]
-        if para.runs:
-            para.runs[0].text = new_text
-            for run in para.runs[1:]:
-                run.text = ""
-        elif new_text:
-            para.add_run(new_text)
+        to_process.append((paras[idx], new_text))
+
+    for para, new_text in to_process:
+        if new_text == "":
+            # Remove the paragraph element entirely (eliminates blank-line spacing)
+            para._element.getparent().remove(para._element)
+        else:
+            if para.runs:
+                para.runs[0].text = new_text
+                for run in para.runs[1:]:
+                    run.text = ""
+            else:
+                para.add_run(new_text)
+
+
+def _apply_formatting(doc: Document, font_pt: float = 11.0, margin_top: float = 0.5, margin_bottom: float = 0.5) -> None:
+    """Set font size on all runs and tighten top/bottom page margins."""
+    size = Pt(font_pt)
+    for para in doc.paragraphs:
+        for run in para.runs:
+            run.font.size = size
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    for run in para.runs:
+                        run.font.size = size
+    for section in doc.sections:
+        section.top_margin = Inches(margin_top)
+        section.bottom_margin = Inches(margin_bottom)
 
 
 def tailor_cover_letter(job: dict, cover_letter_path: str, output_path: str, client, resume_text: str = "") -> str:
@@ -78,12 +103,13 @@ def tailor_cover_letter(job: dict, cover_letter_path: str, output_path: str, cli
 
     replacements = json.loads(json_match.group())
 
-    # Copy base cover letter and apply paragraph replacements
+    # Copy base cover letter, apply paragraph replacements, then format
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(cover_letter_path, output_path)
 
     doc = Document(output_path)
     _apply_paragraph_replacements(doc, replacements)
+    _apply_formatting(doc, font_pt=11.0, margin_top=0.5, margin_bottom=0.5)
     doc.save(output_path)
 
     return output_path

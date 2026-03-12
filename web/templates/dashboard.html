@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Job Finder{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Job Results</h1>
+  <div class="flex items-center gap-3">
+    <div id="run-banner" class="hidden text-sm px-3 py-1.5 rounded-full font-medium"></div>
+    <button onclick="triggerRun()" id="run-btn"
+      class="bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all duration-150">
+      Run Now
+    </button>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="bg-white rounded-xl shadow p-4 mb-4 flex items-center gap-4 flex-wrap text-sm">
+  <div class="flex items-center gap-2">
+    <label class="text-gray-600">Min Score</label>
+    <input type="number" id="filter-score" value="0" min="0" max="100"
+      class="w-20 border border-gray-300 rounded px-2 py-1 text-sm" onchange="loadJobs()" />
+  </div>
+  <div class="flex items-center gap-2">
+    <label class="text-gray-600">Source</label>
+    <select id="filter-source" class="border border-gray-300 rounded px-2 py-1 text-sm" onchange="loadJobs()">
+      <option value="all">All</option>
+      <option value="linkedin">LinkedIn</option>
+      <option value="company_site">Company Sites</option>
+    </select>
+  </div>
+  <div class="flex items-center gap-2">
+    <label class="text-gray-600">Status</label>
+    <select id="filter-status" class="border border-gray-300 rounded px-2 py-1 text-sm" onchange="loadJobs()">
+      <option value="all">All</option>
+      <option value="pending">Pending</option>
+      <option value="applied">Applied</option>
+      <option value="skipped">Skipped</option>
+    </select>
+  </div>
+  <span id="job-count" class="ml-auto text-gray-400"></span>
+</div>
+
+<!-- Job Table -->
+<div class="bg-white rounded-xl shadow overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Company</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Title</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Score</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Location</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Source</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Docs</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Applied</th>
+      </tr>
+    </thead>
+    <tbody id="job-tbody">
+      <tr><td colspan="8" class="text-center text-gray-400 py-12">Loading jobs...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load jobs on page load
+loadJobs();
+
+function loadJobs() {
+  const score = document.getElementById('filter-score').value;
+  const source = document.getElementById('filter-source').value;
+  const status = document.getElementById('filter-status').value;
+  fetch(`/jobs?min_score=${score}&source=${source}&status=${status}`)
+    .then(r => r.json())
+    .then(jobs => renderJobs(jobs));
+}
+
+function renderJobs(jobs) {
+  const tbody = document.getElementById('job-tbody');
+  document.getElementById('job-count').textContent = `${jobs.length} job${jobs.length !== 1 ? 's' : ''}`;
+  if (!jobs.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-gray-400 py-12">No jobs found. Run the pipeline to find new jobs.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = jobs.map(j => {
+    const scoreBadge = j.match_score == null ? '<span class="text-gray-400">—</span>'
+      : j.match_score >= 85 ? `<span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">${j.match_score}</span>`
+      : j.match_score >= 70 ? `<span class="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">${j.match_score}</span>`
+      : `<span class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">${j.match_score}</span>`;
+
+    let docsCell = '<span class="text-gray-300">—</span>';
+    if (j.resume_drive_url || j.cover_letter_drive_url) {
+      const links = [];
+      if (j.resume_drive_url) links.push(`<a href="${j.resume_drive_url}" target="_blank" class="text-blue-600 hover:underline">Resume</a>`);
+      if (j.cover_letter_drive_url) links.push(`<a href="${j.cover_letter_drive_url}" target="_blank" class="text-blue-600 hover:underline">Cover Letter</a>`);
+      docsCell = links.join(' · ');
+    } else if (j.has_resume || j.has_cover_letter) {
+      docsCell = `<a href="/jobs/${j.id}/download" class="text-blue-600 hover:underline">Download</a>`;
+    }
+
+    const statusColors = {pending: 'bg-gray-100 text-gray-600', applied: 'bg-green-100 text-green-700', skipped: 'bg-red-100 text-red-600'};
+    const statusLabels = {pending: 'Pending', applied: 'Applied', skipped: 'Skipped'};
+    const statusBtns = ['pending','applied','skipped'].map(s =>
+      `<button onclick="setStatus(${j.id}, '${s}', this)" data-status="${s}"
+        class="px-2 py-0.5 rounded text-xs font-medium transition ${j.applied_status === s ? statusColors[s] : 'bg-gray-50 text-gray-400 hover:bg-gray-100'}">${statusLabels[s]}</button>`
+    ).join('');
+
+    const titleCell = j.url
+      ? `<a href="${j.url}" target="_blank" class="hover:text-blue-600 hover:underline" title="${j.match_summary || ''}">${j.title || '—'}</a>`
+      : (j.title || '—');
+
+    return `<tr class="job-row border-b border-gray-100" id="row-${j.id}">
+      <td class="px-4 py-3 font-medium">${j.company || '—'}</td>
+      <td class="px-4 py-3 max-w-xs truncate">${titleCell}</td>
+      <td class="px-4 py-3">${scoreBadge}</td>
+      <td class="px-4 py-3 text-gray-500 max-w-xs truncate">${j.location || '—'}</td>
+      <td class="px-4 py-3 text-gray-500 capitalize">${j.source || '—'}</td>
+      <td class="px-4 py-3 text-gray-500">${j.posted_date || j.created_at?.slice(0,10) || '—'}</td>
+      <td class="px-4 py-3">${docsCell}</td>
+      <td class="px-4 py-3"><div class="flex gap-1" id="status-${j.id}">${statusBtns}</div></td>
+    </tr>`;
+  }).join('');
+}
+
+async function setStatus(jobId, status, btn) {
+  const resp = await fetch(`/jobs/${jobId}/status`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status})
+  });
+  if (resp.ok) {
+    // Re-render the status buttons for this row
+    const data = await resp.json();
+    loadJobs();
+  }
+}
+
+let _pollInterval = null;
+
+async function triggerRun() {
+  const btn = document.getElementById('run-btn');
+  const banner = document.getElementById('run-banner');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  const resp = await fetch('/runs/trigger', {method: 'POST'});
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    banner.textContent = data.error || 'Failed to start run.';
+    banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-red-100 text-red-700';
+    banner.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Run Now';
+    return;
+  }
+
+  const runId = data.run_id;
+  banner.textContent = 'Running...';
+  banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-blue-100 text-blue-700';
+  banner.classList.remove('hidden');
+
+  clearInterval(_pollInterval);
+  _pollInterval = setInterval(async () => {
+    const sr = await fetch(`/runs/${runId}/status`);
+    const sd = await sr.json();
+
+    if (sd.status === 'running' || sd.status === 'pending') {
+      banner.textContent = `Running... (${sd.jobs_found || 0} found, ${sd.jobs_tailored || 0} tailored)`;
+    } else if (sd.status === 'complete') {
+      clearInterval(_pollInterval);
+      banner.textContent = `Complete — ${sd.jobs_found} jobs found, ${sd.jobs_tailored} tailored`;
+      banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-green-100 text-green-700';
+      btn.disabled = false;
+      btn.textContent = 'Run Now';
+      loadJobs();
+    } else {
+      clearInterval(_pollInterval);
+      banner.textContent = `Run failed: ${sd.error_message || 'unknown error'}`;
+      banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-red-100 text-red-700';
+      btn.disabled = false;
+      btn.textContent = 'Run Now';
+    }
+  }, 5000);
+}
+</script>
+{% endblock %}

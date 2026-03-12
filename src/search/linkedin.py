@@ -21,24 +21,27 @@ def search_linkedin(
     titles: list[str],
     keywords: list[str],
     filters: dict,
+    session_file: Path | None = None,
 ) -> list[dict]:
     """
     Search LinkedIn Jobs for matching positions using a saved Playwright session.
     Returns: [{"company", "title", "description", "url", "location", "posted_date", "source"}]
 
-    Requires inputs/linkedin_session.json — run with --setup to create it.
+    Requires a linkedin_session.json file — run with --setup to create it.
+    Pass session_file to override the default path (used by the web app for per-user sessions).
     """
     from playwright.sync_api import sync_playwright
 
-    if not SESSION_FILE.exists():
+    session_file = Path(session_file) if session_file else SESSION_FILE
+    if not session_file.exists():
         print(
-            f"\n  LinkedIn: no session file found at {SESSION_FILE}\n"
+            f"\n  LinkedIn: no session file found at {session_file}\n"
             "  Run: python src/search/linkedin.py --setup\n"
             "  Then re-run the agent.\n"
         )
         return []
 
-    cookies = json.loads(SESSION_FILE.read_text())
+    cookies = json.loads(session_file.read_text())
     days = filters.get("posted_within_days", 30)
     seconds = days * 24 * 3600  # LinkedIn time filter uses seconds
 
@@ -46,7 +49,11 @@ def search_linkedin(
     seen_urls: set[str] = set()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=[
+            "--no-sandbox", "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage", "--disable-gpu",
+            "--single-process", "--no-zygote",
+        ])
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -56,6 +63,20 @@ def search_linkedin(
         )
         context.add_cookies(cookies)
         page = context.new_page()
+
+        # Warm up: visit LinkedIn home so it establishes a full session.
+        try:
+            page.goto(LINKEDIN_HOME, wait_until="domcontentloaded", timeout=20000)
+            time.sleep(2)
+            print(f"    LinkedIn warm-up landed on: {page.url}")
+        except Exception as e:
+            print(f"    LinkedIn warm-up failed: {e}")
+            print(f"    (current URL: {page.url})")
+
+        if "linkedin.com/login" in page.url or "linkedin.com/authwall" in page.url:
+            print("    LinkedIn: cookies not accepted — session is invalid. Please re-enter cookies in Settings.")
+            browser.close()
+            return []
 
         for title in titles:
             for city in cities:
@@ -138,15 +159,17 @@ def _parse_job_list(page, city: str) -> list[dict]:
     return jobs
 
 
-def fetch_descriptions_batch(jobs: list[dict]) -> None:
+def fetch_descriptions_batch(jobs: list[dict], session_file: Path | None = None) -> None:
     """
     Fetch LinkedIn job descriptions for a batch of jobs using a single browser context.
     Mutates each job dict's 'description' field in place.
     Only processes jobs from LinkedIn source with empty descriptions.
+    Pass session_file to override the default path (used by the web app for per-user sessions).
     """
     from playwright.sync_api import sync_playwright
 
-    if not SESSION_FILE.exists():
+    session_file = Path(session_file) if session_file else SESSION_FILE
+    if not session_file.exists():
         print("  LinkedIn: no session file, skipping description fetch.")
         return
 
@@ -154,10 +177,14 @@ def fetch_descriptions_batch(jobs: list[dict]) -> None:
     if not linkedin_jobs:
         return
 
-    cookies = json.loads(SESSION_FILE.read_text())
+    cookies = json.loads(session_file.read_text())
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, args=[
+            "--no-sandbox", "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage", "--disable-gpu",
+            "--single-process", "--no-zygote",
+        ])
         context = browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

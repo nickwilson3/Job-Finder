@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Admin — Job Finder{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-6">User Management</h1>
+
+<div class="bg-white rounded-xl shadow overflow-hidden transition-shadow duration-200 hover:shadow-md">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 border-b border-gray-200">
+      <tr>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">User</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Email</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Joined</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">LinkedIn</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Schedule</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Last Run</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+        <th class="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in user_data %}
+      {% set u = row.user %}
+      {% set lr = row.last_run %}
+      <tr class="border-b border-gray-100 hover:bg-gray-50 {% if not u.is_active %}opacity-50{% endif %}">
+        <td class="px-4 py-3 font-medium">
+          {{ u.display_name or u.email }}
+          {% if u.is_admin %}<span class="ml-1 text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">admin</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500">{{ u.email }}</td>
+        <td class="px-4 py-3 text-gray-500">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+        <td class="px-4 py-3">
+          {% if u.linkedin_session_expires_at %}
+            <span class="text-green-600 text-xs">Connected</span>
+          {% else %}
+            <span class="text-gray-400 text-xs">Not connected</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500 text-xs">
+          {% if u.schedule_enabled %}{{ u.schedule_time }} UTC{% else %}Off{% endif %}
+        </td>
+        <td class="px-4 py-3 text-gray-500 text-xs">
+          {% if lr %}
+            {{ lr.started_at.strftime('%Y-%m-%d') }} —
+            <span class="{% if lr.status == 'complete' %}text-green-600{% elif lr.status == 'failed' %}text-red-500{% else %}text-blue-500{% endif %}">{{ lr.status }}</span>
+            ({{ lr.jobs_found or 0 }} jobs)
+          {% else %}Never{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if u.is_active %}
+            <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">Active</span>
+          {% else %}
+            <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full text-xs">Disabled</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          {% if not u.is_admin %}
+          <form method="post" action="/admin/users/{{ u.id }}/toggle" class="inline">
+            <button type="submit" class="text-xs {% if u.is_active %}text-red-500 hover:text-red-700{% else %}text-blue-600 hover:text-blue-800{% endif %}">
+              {% if u.is_active %}Disable{% else %}Enable{% endif %}
+            </button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
