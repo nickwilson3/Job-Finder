@@ -32,21 +32,30 @@ router = APIRouter()
 
 OAUTH_CREDENTIALS_FILE = Path("inputs/oauth_credentials.json")
 DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
-REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "https://job-finder-fdjb.onrender.com/auth/google/callback")
 
 
 def _client_config() -> dict:
-    """Read OAuth client_id and client_secret from the existing credential file."""
-    if not OAUTH_CREDENTIALS_FILE.exists():
+    """Read OAuth client_id and client_secret.
+
+    Checks (in order):
+      1. GOOGLE_OAUTH_CREDENTIALS env var — full JSON string (used in production/Render)
+      2. inputs/oauth_credentials.json file — used locally
+    """
+    raw_json = os.environ.get("GOOGLE_OAUTH_CREDENTIALS")
+    if raw_json:
+        raw = json.loads(raw_json)
+    elif OAUTH_CREDENTIALS_FILE.exists():
+        raw = json.loads(OAUTH_CREDENTIALS_FILE.read_text())
+    else:
         raise RuntimeError(
-            "inputs/oauth_credentials.json not found. "
-            "Place your Google OAuth 2.0 credential file there."
+            "Google OAuth credentials not found. "
+            "Set the GOOGLE_OAUTH_CREDENTIALS env var (paste the full JSON from Google Cloud Console), "
+            "or place the file at inputs/oauth_credentials.json."
         )
-    raw = json.loads(OAUTH_CREDENTIALS_FILE.read_text())
-    # Support both 'installed' (Desktop App) and 'web' credential types
     cred = raw.get("installed") or raw.get("web")
     if not cred:
-        raise RuntimeError("Unrecognised OAuth credential format in oauth_credentials.json")
+        raise RuntimeError("Unrecognised OAuth credential format.")
     return {
         "web": {
             "client_id": cred["client_id"],
