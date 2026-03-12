@@ -9,6 +9,21 @@ from web.database import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Mark any runs left in running/pending state as failed (server restarted)
+    from web.database import SessionLocal
+    from web.models import Run
+    from datetime import datetime
+    db = SessionLocal()
+    try:
+        stale = db.query(Run).filter(Run.status.in_(["running", "pending"])).all()
+        for run in stale:
+            run.status = "failed"
+            run.error_message = "Server restarted — run was interrupted"
+            run.finished_at = datetime.utcnow()
+        if stale:
+            db.commit()
+    finally:
+        db.close()
     yield
 
 

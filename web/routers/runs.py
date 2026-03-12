@@ -149,8 +149,9 @@ def cancel_run(run_id: int, request: Request, db: Session = Depends(get_db)):
     if ev:
         ev.set()
 
-    # If it's still pending (queued), mark it cancelled immediately
-    if run.status == "pending":
+    # If it's still pending (queued), or if there's no in-memory event (stale run
+    # from a previous server instance), mark it cancelled immediately in the DB.
+    if run.status == "pending" or ev is None:
         run.status = "cancelled"
         run.finished_at = datetime.utcnow()
         run.status_message = "Cancelled"
