@@ -23,6 +23,7 @@ def search_linkedin(
     filters: dict,
     session_file: Path | None = None,
     description_filter_fn=None,
+    cancel_event=None,
 ) -> list[dict]:
     """
     Search LinkedIn Jobs for matching positions using a saved Playwright session.
@@ -95,6 +96,9 @@ def search_linkedin(
 
         for title in titles:
             for city in cities:
+                if cancel_event and cancel_event.is_set():
+                    browser.close()
+                    return all_jobs
                 location = "Remote" if city.lower() == "remote" else city
                 params = (
                     f"?keywords={quote_plus(title)}"
@@ -123,9 +127,9 @@ def search_linkedin(
 
         # Fetch descriptions in the same session to avoid a second Chromium launch.
         # description_filter_fn can do dedup+cap so we only fetch for the jobs that matter.
-        if description_filter_fn is not None:
+        if description_filter_fn is not None and not (cancel_event and cancel_event.is_set()):
             jobs_for_descriptions = description_filter_fn(all_jobs)
-            _fetch_descriptions_with_page(page, jobs_for_descriptions)
+            _fetch_descriptions_with_page(page, jobs_for_descriptions, cancel_event=cancel_event)
 
         browser.close()
 
@@ -180,12 +184,14 @@ def _parse_job_list(page, city: str) -> list[dict]:
     return jobs
 
 
-def _fetch_descriptions_with_page(page, jobs: list[dict]) -> None:
+def _fetch_descriptions_with_page(page, jobs: list[dict], cancel_event=None) -> None:
     """Fetch descriptions for LinkedIn jobs using an already-open Playwright page."""
     linkedin_jobs = [j for j in jobs if j.get("source") == "linkedin" and not j.get("description")]
     if not linkedin_jobs:
         return
     for job in linkedin_jobs:
+        if cancel_event and cancel_event.is_set():
+            return
         url = job.get("url", "")
         if not url:
             continue

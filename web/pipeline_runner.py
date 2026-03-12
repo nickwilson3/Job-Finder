@@ -207,6 +207,7 @@ def run_pipeline_for_user(user_id: int, run_id: int, db, cancel_event=None, prog
             found = search_linkedin(
                 cities, titles, keywords, filters,
                 description_filter_fn=_description_filter,
+                cancel_event=cancel_event,
             )
             log.info(f"  LinkedIn: {len(found)} jobs")
             all_jobs.extend(found)

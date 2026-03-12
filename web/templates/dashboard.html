@@ -81,6 +81,22 @@
 {% block scripts %}
 <script>
 loadJobs();
+// Restore progress panel if a run was active when the page was loaded/refreshed
+(async () => {
+  const r = await fetch('/runs/active');
+  const d = await r.json();
+  if (d.active) {
+    _activeRunId = d.run_id;
+    _showRunPanel(true);
+    if (d.status === 'pending') {
+      _setProgress(0, `Queued — position ${d.queue_position || 1} in line`);
+    } else {
+      _setProgress(d.progress_pct || 0, d.status_message || 'Running...');
+    }
+    clearInterval(_pollInterval);
+    _pollInterval = setInterval(_pollStatus, 4000);
+  }
+})();
 
 function loadJobs() {
   const score = document.getElementById('filter-score').value;

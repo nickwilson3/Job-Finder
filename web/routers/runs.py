@@ -70,23 +70,36 @@ def _run_in_thread(user_id: int, run_id: int) -> None:
         cancel_event = _cancel_events.get(run_id, threading.Event())
 
         def progress_callback(pct: int, message: str):
-            run = db.get(Run, run_id)
-            if run:
-                run.progress_pct = pct
-                run.status_message = message
-                db.commit()
+            try:
+                run = db.get(Run, run_id)
+                if run:
+                    run.progress_pct = pct
+                    run.status_message = message
+                    db.commit()
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
         from web.pipeline_runner import run_pipeline_for_user
         run_pipeline_for_user(user_id, run_id, db,
                               cancel_event=cancel_event,
                               progress_callback=progress_callback)
     except Exception as e:
-        run = db.get(Run, run_id)
-        if run:
-            run.status = "failed"
-            run.error_message = str(e)
-            run.finished_at = datetime.utcnow()
-            db.commit()
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        try:
+            run = db.get(Run, run_id)
+            if run:
+                run.status = "failed"
+                run.error_message = str(e)
+                run.finished_at = datetime.utcnow()
+                db.commit()
+        except Exception:
+            pass
     finally:
         db.close()
 
@@ -145,6 +158,33 @@ def cancel_run(run_id: int, request: Request, db: Session = Depends(get_db)):
         db.commit()
 
     return JSONResponse({"status": "cancelling"})
+
+
+@router.get("/runs/active")
+def active_run(request: Request, db: Session = Depends(get_db)):
+    """Return the latest pending/running run for this user, or null if none."""
+    user: User = get_current_user(request, db)
+    run = (
+        db.query(Run)
+        .filter(Run.user_id == user.id, Run.status.in_(["pending", "running"]))
+        .order_by(Run.started_at.desc())
+        .first()
+    )
+    if not run:
+        return JSONResponse({"active": False})
+    queue_position = 0
+    if run.status == "pending":
+        queue_position = db.query(Run).filter(
+            Run.status == "pending", Run.id < run.id
+        ).count() + 1
+    return JSONResponse({
+        "active": True,
+        "run_id": run.id,
+        "status": run.status,
+        "progress_pct": run.progress_pct or 0,
+        "status_message": run.status_message or "",
+        "queue_position": queue_position,
+    })
 
 
 @router.get("/runs/{run_id}/status")
