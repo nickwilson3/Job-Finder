@@ -11,6 +11,11 @@ from pathlib import Path
 from docx import Document
 from docx.shared import Inches, Pt
 
+# Matches bracket placeholders that are clearly template instructions, e.g.:
+#   [Company Name]  [specific mission, product, or initiative]  [Role Title]
+# Excludes numeric indices like [0] which are not template placeholders.
+_TEMPLATE_BRACKET = re.compile(r'\[[A-Za-z][^\]]{2,}\]')
+
 PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "cover_letter_tailor.md"
 
 
@@ -46,6 +51,20 @@ def _apply_paragraph_replacements(doc: Document, replacements: list[dict]) -> No
                     run.text = ""
             else:
                 para.add_run(new_text)
+
+
+def _remove_template_remnants(doc: Document) -> None:
+    """Delete any paragraph still containing unfilled template bracket placeholders.
+
+    Haiku sometimes writes the tailored content to the correct index but forgets
+    to clear the adjacent original template paragraph. This catches what it misses.
+    """
+    for para in list(doc.paragraphs):
+        if _TEMPLATE_BRACKET.search(para.text):
+            try:
+                para._element.getparent().remove(para._element)
+            except Exception:
+                pass
 
 
 def _apply_formatting(doc: Document, font_pt: float = 11.0, margin_top: float = 0.5, margin_bottom: float = 0.5) -> None:
@@ -109,6 +128,7 @@ def tailor_cover_letter(job: dict, cover_letter_path: str, output_path: str, cli
 
     doc = Document(output_path)
     _apply_paragraph_replacements(doc, replacements)
+    _remove_template_remnants(doc)
     _apply_formatting(doc, font_pt=11.0, margin_top=0.5, margin_bottom=0.5)
     doc.save(output_path)
 

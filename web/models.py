@@ -32,11 +32,14 @@ class Run(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
-    status: Mapped[str] = mapped_column(String, default="pending")  # pending|running|complete|failed
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending|running|complete|failed|cancelled
     jobs_found: Mapped[int] = mapped_column(Integer, default=0)
     jobs_tailored: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text)
     log_tail: Mapped[str | None] = mapped_column(Text)
+    progress_pct: Mapped[int] = mapped_column(Integer, default=0)
+    status_message: Mapped[str | None] = mapped_column(String)
+    queue_position: Mapped[int] = mapped_column(Integer, default=0)
 
     user: Mapped["User"] = relationship("User", back_populates="runs")
     jobs: Mapped[list["Job"]] = relationship("Job", back_populates="run")

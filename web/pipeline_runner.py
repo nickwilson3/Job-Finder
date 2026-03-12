@@ -21,7 +21,7 @@ _SRC = Path(__file__).parent.parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from search.linkedin import fetch_descriptions_batch, search_linkedin
+from search.linkedin import search_linkedin
 from search.company_sites import search_company_sites
 from analyzer.job_matcher import score_job
 from analyzer.preference_learner import build_preference_context
@@ -110,7 +110,7 @@ def _get_seen_urls(db, user_id: int) -> set[str]:
 # Main per-user pipeline entry point
 # ---------------------------------------------------------------------------
 
-def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
+def run_pipeline_for_user(user_id: int, run_id: int, db, cancel_event=None, progress_callback=None) -> None:
     """
     Execute the full job-finding pipeline for a single user.
     Updates the Run record in DB as it progresses.
@@ -127,6 +127,13 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
         db.commit()
 
     _update_run(status="running")
+    import threading as _threading
+    if cancel_event is None:
+        cancel_event = _threading.Event()
+    if progress_callback is None:
+        progress_callback = lambda pct, msg: None
+
+    progress_callback(5, "Searching LinkedIn...")
     log.info(f"Job Finder starting for user {user_id}")
 
     try:
@@ -170,11 +177,37 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
     all_jobs: list[dict] = []
 
     # --- Search ---
+    # Pre-load seen URLs so the description_filter_fn can dedup+cap inside the search browser.
+    # This merges the LinkedIn search + description fetch into ONE Chromium launch,
+    # halving peak memory usage on Render's 512 MB free tier.
+    seen_urls_for_filter = _get_seen_urls(db, user_id)
+
+    def _description_filter(scraped_jobs: list[dict]) -> list[dict]:
+        """Dedup + cap within the still-open search browser session."""
+        if cancel_event.is_set():
+            return []
+        progress_callback(25, "Fetching job descriptions...")
+        seen: set[str] = set()
+        unique: list[dict] = []
+        for j in scraped_jobs:
+            url = j.get("url", "")
+            if url and url not in seen:
+                seen.add(url)
+                unique.append(j)
+        new = [j for j in unique if j.get("url", "") not in seen_urls_for_filter]
+        new.sort(key=lambda j: j.get("posted_date", "") or "", reverse=True)
+        return new[:max_jobs]
+
     if sources.get("linkedin"):
         log.info("Searching LinkedIn...")
         try:
-            # Uses shared inputs/linkedin_session.json (Nick's dummy account)
-            found = search_linkedin(cities, titles, keywords, filters)
+            # Uses shared inputs/linkedin_session.json (Nick's dummy account).
+            # description_filter_fn fetches descriptions in the same browser session —
+            # no second Chromium launch needed.
+            found = search_linkedin(
+                cities, titles, keywords, filters,
+                description_filter_fn=_description_filter,
+            )
             log.info(f"  LinkedIn: {len(found)} jobs")
             all_jobs.extend(found)
         except Exception as e:
@@ -218,6 +251,11 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
         _update_run(status="complete", jobs_found=0, finished_at=datetime.utcnow(), log_tail=_get_log_tail(user_id))
         return
 
+    if cancel_event.is_set():
+        log.info("Run cancelled by user.")
+        _update_run(status="cancelled", finished_at=datetime.utcnow(), log_tail=_get_log_tail(user_id), status_message="Cancelled")
+        return
+
     # RL: load application history
     applied_hist, skipped_hist = _load_history(db, user_id)
     preference_context = build_preference_context(applied_hist, skipped_hist, client)
@@ -230,11 +268,9 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
         log.info(f"Capping to {max_jobs} jobs ({len(new_jobs) - max_jobs} deferred).")
         new_jobs = new_jobs[:max_jobs]
 
-    # Fetch LinkedIn descriptions
-    if sources.get("linkedin") and any(j.get("source") == "linkedin" for j in new_jobs):
-        log.info(f"Fetching LinkedIn descriptions for {len(new_jobs)} jobs...")
-        fetch_descriptions_batch(new_jobs)
+    progress_callback(45, f"Scoring {len(new_jobs)} jobs...")
 
+    # LinkedIn descriptions were already fetched during the search browser session above.
     log.info(f"Processing {len(new_jobs)} new jobs...\n")
     resume_text = _extract_text(resume_path)
     today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -250,6 +286,11 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
     cached_folder_id = user_obj.google_drive_folder_id if user_obj else None
 
     for job in new_jobs:
+        if cancel_event.is_set():
+            log.info("Run cancelled by user.")
+            _update_run(status="cancelled", finished_at=datetime.utcnow(), log_tail=_get_log_tail(user_id), status_message="Cancelled")
+            return
+
         company = job.get("company", "Unknown")
         title = job.get("title", "Unknown")
         source_tag = job.get("source", "")
@@ -285,6 +326,9 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
             resume_out_path = str(job_dir / "resume.docx")
             cover_out_path = str(job_dir / "cover_letter.docx")
             try:
+                job_index = new_jobs.index(job) + 1
+                tailor_pct = 55 + int((job_index / len(new_jobs)) * 30)
+                progress_callback(tailor_pct, f"Tailoring documents ({job_index}/{len(new_jobs)})...")
                 tailor_resume(job, resume_path, resume_out_path, client)
                 tailor_cover_letter(job, cover_path, cover_out_path, client, resume_text=resume_text)
                 tailored_count += 1
@@ -297,6 +341,7 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
         # Upload to Google Drive if the user has it connected
         resume_drive_url = None
         cover_drive_url = None
+        progress_callback(88, "Uploading to Google Drive...")
         if drive_connected and resume_out_path and cover_out_path:
             slug = f"{_safe_slug(company)}_{_safe_slug(title)}"
             try:
@@ -343,5 +388,7 @@ def run_pipeline_for_user(user_id: int, run_id: int, db) -> None:
         jobs_tailored=tailored_count,
         finished_at=datetime.utcnow(),
         log_tail=log_tail,
+        progress_pct=100,
+        status_message=f"Complete — {len(new_jobs)} jobs found, {tailored_count} tailored",
     )
     log.info(f"Run complete. {len(new_jobs)} processed, {tailored_count} tailored.")

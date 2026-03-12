@@ -35,3 +35,18 @@ def get_db():
 def init_db():
     from web.models import User, Run, Job  # noqa: F401 — ensure models are registered
     Base.metadata.create_all(bind=engine)
+
+    # Add new columns to existing tables (safe to run on already-migrated DBs)
+    from sqlalchemy import text
+    new_cols = [
+        ("runs", "progress_pct", "INTEGER DEFAULT 0"),
+        ("runs", "status_message", "VARCHAR"),
+        ("runs", "queue_position", "INTEGER DEFAULT 0"),
+    ]
+    with engine.connect() as conn:
+        for table, col, col_def in new_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}"))
+                conn.commit()
+            except Exception:
+                conn.rollback()

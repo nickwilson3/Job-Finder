@@ -5,12 +5,27 @@
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold">Job Results</h1>
   <div class="flex items-center gap-3">
-    <div id="run-banner" class="hidden text-sm px-3 py-1.5 rounded-full font-medium"></div>
     <button onclick="triggerRun()" id="run-btn"
       class="bg-gradient-to-r from-blue-600 to-sky-500 hover:from-blue-700 hover:to-sky-600 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm hover:shadow transition-all duration-150">
       Run Now
     </button>
+    <button onclick="cancelRun()" id="cancel-btn"
+      class="hidden text-sm text-red-500 hover:text-red-700 border border-red-200 hover:border-red-400 px-3 py-2 rounded-lg transition-all duration-150">
+      Cancel
+    </button>
   </div>
+</div>
+
+<!-- Run progress panel (hidden when idle) -->
+<div id="run-progress-panel" class="hidden bg-white rounded-xl shadow p-4 mb-4">
+  <div class="flex items-center justify-between mb-2">
+    <span id="run-status-text" class="text-sm font-medium text-gray-700">Starting...</span>
+    <span id="run-pct-text" class="text-sm text-gray-400">0%</span>
+  </div>
+  <div class="w-full bg-gray-100 rounded-full h-2">
+    <div id="run-progress-bar" class="bg-gradient-to-r from-blue-500 to-sky-400 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+  </div>
+  <p class="text-xs text-gray-400 mt-2">Runs typically take 20–30 minutes. You can close this tab and come back — results will be here when it's done.</p>
 </div>
 
 <!-- Filters -->
@@ -65,7 +80,6 @@
 
 {% block scripts %}
 <script>
-// Load jobs on page load
 loadJobs();
 
 function loadJobs() {
@@ -130,60 +144,94 @@ async function setStatus(jobId, status, btn) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status})
   });
-  if (resp.ok) {
-    // Re-render the status buttons for this row
-    const data = await resp.json();
-    loadJobs();
-  }
+  if (resp.ok) loadJobs();
 }
 
 let _pollInterval = null;
+let _activeRunId = null;
+
+function _setProgress(pct, message) {
+  document.getElementById('run-progress-bar').style.width = pct + '%';
+  document.getElementById('run-pct-text').textContent = pct + '%';
+  document.getElementById('run-status-text').textContent = message;
+}
+
+function _showRunPanel(show) {
+  document.getElementById('run-progress-panel').classList.toggle('hidden', !show);
+  document.getElementById('cancel-btn').classList.toggle('hidden', !show);
+  const btn = document.getElementById('run-btn');
+  btn.disabled = show;
+  btn.textContent = show ? 'Running...' : 'Run Now';
+}
 
 async function triggerRun() {
-  const btn = document.getElementById('run-btn');
-  const banner = document.getElementById('run-banner');
-  btn.disabled = true;
-  btn.textContent = 'Starting...';
+  _showRunPanel(true);
+  _setProgress(0, 'Starting...');
 
   const resp = await fetch('/runs/trigger', {method: 'POST'});
   const data = await resp.json();
 
   if (!resp.ok) {
-    banner.textContent = data.error || 'Failed to start run.';
-    banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-red-100 text-red-700';
-    banner.classList.remove('hidden');
-    btn.disabled = false;
-    btn.textContent = 'Run Now';
+    _setProgress(0, data.error || 'Failed to start run.');
+    document.getElementById('run-status-text').classList.add('text-red-600');
+    _showRunPanel(false);
     return;
   }
 
-  const runId = data.run_id;
-  banner.textContent = 'Running...';
-  banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-blue-100 text-blue-700';
-  banner.classList.remove('hidden');
+  _activeRunId = data.run_id;
+  if (data.queue_position > 1) {
+    _setProgress(0, `Queued — position ${data.queue_position} in line`);
+  }
 
   clearInterval(_pollInterval);
-  _pollInterval = setInterval(async () => {
-    const sr = await fetch(`/runs/${runId}/status`);
-    const sd = await sr.json();
+  _pollInterval = setInterval(_pollStatus, 4000);
+}
 
-    if (sd.status === 'running' || sd.status === 'pending') {
-      banner.textContent = `Running... (${sd.jobs_found || 0} found, ${sd.jobs_tailored || 0} tailored)`;
-    } else if (sd.status === 'complete') {
-      clearInterval(_pollInterval);
-      banner.textContent = `Complete — ${sd.jobs_found} jobs found, ${sd.jobs_tailored} tailored`;
-      banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-green-100 text-green-700';
-      btn.disabled = false;
-      btn.textContent = 'Run Now';
-      loadJobs();
-    } else {
-      clearInterval(_pollInterval);
-      banner.textContent = `Run failed: ${sd.error_message || 'unknown error'}`;
-      banner.className = 'text-sm px-3 py-1.5 rounded-full font-medium bg-red-100 text-red-700';
-      btn.disabled = false;
-      btn.textContent = 'Run Now';
-    }
-  }, 5000);
+async function cancelRun() {
+  if (!_activeRunId) return;
+  await fetch(`/runs/${_activeRunId}/cancel`, {method: 'POST'});
+  _setProgress(0, 'Cancelling...');
+}
+
+async function _pollStatus() {
+  if (!_activeRunId) return;
+  const sr = await fetch(`/runs/${_activeRunId}/status`);
+  const sd = await sr.json();
+
+  const pct = sd.progress_pct || 0;
+  const msg = sd.status_message || '';
+
+  if (sd.status === 'pending') {
+    const pos = sd.queue_position || 1;
+    _setProgress(0, `Queued — position ${pos} in line`);
+  } else if (sd.status === 'running') {
+    _setProgress(pct, msg || 'Running...');
+  } else if (sd.status === 'complete') {
+    clearInterval(_pollInterval);
+    _setProgress(100, `Done — ${sd.jobs_found} jobs found, ${sd.jobs_tailored} tailored`);
+    setTimeout(() => {
+      _showRunPanel(false);
+      _setProgress(0, '');
+      _activeRunId = null;
+    }, 4000);
+    loadJobs();
+  } else if (sd.status === 'cancelled') {
+    clearInterval(_pollInterval);
+    _setProgress(0, 'Run cancelled.');
+    setTimeout(() => {
+      _showRunPanel(false);
+      _setProgress(0, '');
+      _activeRunId = null;
+    }, 3000);
+  } else {
+    clearInterval(_pollInterval);
+    _setProgress(pct, `Failed: ${sd.error_message || 'unknown error'}`);
+    document.getElementById('run-status-text').classList.add('text-red-600');
+    setTimeout(() => {
+      _showRunPanel(false);
+      _activeRunId = null;
+    }, 5000);
+  }
 }
 </script>
 {% endblock %}

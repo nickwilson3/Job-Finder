@@ -22,6 +22,7 @@ def search_linkedin(
     keywords: list[str],
     filters: dict,
     session_file: Path | None = None,
+    description_filter_fn=None,
 ) -> list[dict]:
     """
     Search LinkedIn Jobs for matching positions using a saved Playwright session.
@@ -29,6 +30,10 @@ def search_linkedin(
 
     Requires a linkedin_session.json file — run with --setup to create it.
     Pass session_file to override the default path (used by the web app for per-user sessions).
+
+    Pass description_filter_fn(all_jobs) -> subset to fetch descriptions while the browser is
+    still open — avoids a second Chromium launch and halves peak memory usage on Render free tier.
+    The callable receives the full scraped job list and returns the subset needing descriptions.
     """
     from playwright.sync_api import sync_playwright
 
@@ -58,6 +63,11 @@ def search_linkedin(
             "--no-sandbox", "--disable-setuid-sandbox",
             "--disable-dev-shm-usage", "--disable-gpu",
             "--single-process", "--no-zygote",
+            "--disable-extensions", "--disable-background-networking",
+            "--disable-sync", "--disable-translate",
+            "--disable-default-apps", "--disable-hang-monitor",
+            "--disable-client-side-phishing-detection",
+            "--js-flags=--max-old-space-size=128",
         ])
         context = browser.new_context(
             user_agent=(
@@ -110,6 +120,12 @@ def search_linkedin(
                     print(f"    LinkedIn error ({title} / {city}): {e}")
 
                 time.sleep(2)
+
+        # Fetch descriptions in the same session to avoid a second Chromium launch.
+        # description_filter_fn can do dedup+cap so we only fetch for the jobs that matter.
+        if description_filter_fn is not None:
+            jobs_for_descriptions = description_filter_fn(all_jobs)
+            _fetch_descriptions_with_page(page, jobs_for_descriptions)
 
         browser.close()
 
@@ -164,12 +180,33 @@ def _parse_job_list(page, city: str) -> list[dict]:
     return jobs
 
 
+def _fetch_descriptions_with_page(page, jobs: list[dict]) -> None:
+    """Fetch descriptions for LinkedIn jobs using an already-open Playwright page."""
+    linkedin_jobs = [j for j in jobs if j.get("source") == "linkedin" and not j.get("description")]
+    if not linkedin_jobs:
+        return
+    for job in linkedin_jobs:
+        url = job.get("url", "")
+        if not url:
+            continue
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            time.sleep(1.5)
+            desc_el = page.query_selector(
+                "div.jobs-description__content, div.description__text"
+            )
+            if desc_el:
+                job["description"] = desc_el.inner_text().strip()[:3000]
+        except Exception as e:
+            print(f"    Description fetch failed ({job.get('company')} — {job.get('title')}): {e}")
+        time.sleep(1.5)
+
+
 def fetch_descriptions_batch(jobs: list[dict], session_file: Path | None = None) -> None:
     """
-    Fetch LinkedIn job descriptions for a batch of jobs using a single browser context.
-    Mutates each job dict's 'description' field in place.
-    Only processes jobs from LinkedIn source with empty descriptions.
-    Pass session_file to override the default path (used by the web app for per-user sessions).
+    Fetch LinkedIn job descriptions using a separate browser session.
+    Prefer passing fetch_descriptions=True to search_linkedin() instead — that reuses
+    the existing browser and avoids a second Chromium launch (halves peak memory).
     """
     from playwright.sync_api import sync_playwright
 
@@ -193,6 +230,11 @@ def fetch_descriptions_batch(jobs: list[dict], session_file: Path | None = None)
             "--no-sandbox", "--disable-setuid-sandbox",
             "--disable-dev-shm-usage", "--disable-gpu",
             "--single-process", "--no-zygote",
+            "--disable-extensions", "--disable-background-networking",
+            "--disable-sync", "--disable-translate",
+            "--disable-default-apps", "--disable-hang-monitor",
+            "--disable-client-side-phishing-detection",
+            "--js-flags=--max-old-space-size=128",
         ])
         context = browser.new_context(
             user_agent=(
@@ -203,23 +245,7 @@ def fetch_descriptions_batch(jobs: list[dict], session_file: Path | None = None)
         )
         context.add_cookies(cookies)
         page = context.new_page()
-
-        for job in linkedin_jobs:
-            url = job.get("url", "")
-            if not url:
-                continue
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=20000)
-                time.sleep(1.5)
-                desc_el = page.query_selector(
-                    "div.jobs-description__content, div.description__text"
-                )
-                if desc_el:
-                    job["description"] = desc_el.inner_text().strip()[:3000]
-            except Exception as e:
-                print(f"    Description fetch failed ({job.get('company')} — {job.get('title')}): {e}")
-            time.sleep(1.5)
-
+        _fetch_descriptions_with_page(page, linkedin_jobs)
         browser.close()
 
 
