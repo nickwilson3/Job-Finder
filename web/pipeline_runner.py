@@ -286,7 +286,7 @@ def run_pipeline_for_user(user_id: int, run_id: int, db, cancel_event=None, prog
     drive_connected = user_obj.google_drive_connected if user_obj else False
     cached_folder_id = user_obj.google_drive_folder_id if user_obj else None
 
-    for job in new_jobs:
+    for idx, job in enumerate(new_jobs):
         if cancel_event.is_set():
             log.info("Run cancelled by user.")
             _update_run(status="cancelled", finished_at=datetime.utcnow(), log_tail=_get_log_tail(user_id), status_message="Cancelled")
@@ -327,9 +327,8 @@ def run_pipeline_for_user(user_id: int, run_id: int, db, cancel_event=None, prog
             resume_out_path = str(job_dir / "resume.docx")
             cover_out_path = str(job_dir / "cover_letter.docx")
             try:
-                job_index = new_jobs.index(job) + 1
-                tailor_pct = 55 + int((job_index / len(new_jobs)) * 30)
-                progress_callback(tailor_pct, f"Tailoring documents ({job_index}/{len(new_jobs)})...")
+                tailor_pct = 55 + int(((idx + 1) / len(new_jobs)) * 30)
+                progress_callback(tailor_pct, f"Tailoring documents ({idx + 1}/{len(new_jobs)})...")
                 tailor_resume(job, resume_path, resume_out_path, client)
                 tailor_cover_letter(job, cover_path, cover_out_path, client, resume_text=resume_text)
                 tailored_count += 1
